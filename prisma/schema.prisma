@@ -1,0 +1,156 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ---------------------------------------------------------------------------
+// Auth (Better Auth core schema)
+// ---------------------------------------------------------------------------
+
+model User {
+  id            String        @id
+  name          String
+  email         String        @unique
+  emailVerified Boolean       @default(false)
+  image         String?
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+  sessions      Session[]
+  accounts      Account[]
+  applications  Application[]
+
+  @@map("user")
+}
+
+model Session {
+  id        String   @id
+  expiresAt DateTime
+  token     String   @unique
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  ipAddress String?
+  userAgent String?
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("session")
+}
+
+model Account {
+  id                    String    @id
+  accountId             String
+  providerId            String
+  userId                String
+  user                  User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  accessToken           String?
+  refreshToken          String?
+  idToken               String?
+  accessTokenExpiresAt  DateTime?
+  refreshTokenExpiresAt DateTime?
+  scope                 String?
+  password              String?
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+
+  @@index([userId])
+  @@map("account")
+}
+
+model Verification {
+  id         String   @id
+  identifier String
+  value      String
+  expiresAt  DateTime
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@index([identifier])
+  @@map("verification")
+}
+
+// ---------------------------------------------------------------------------
+// Job applications
+// ---------------------------------------------------------------------------
+
+enum Stage {
+  WISHLIST
+  APPLIED
+  SCREENING
+  INTERVIEW
+  OFFER
+  REJECTED
+  WITHDRAWN
+}
+
+enum WorkMode {
+  ONSITE
+  HYBRID
+  REMOTE
+}
+
+enum Source {
+  LINKEDIN
+  REFERRAL
+  COMPANY_SITE
+  JOB_BOARD
+  RECRUITER
+  OTHER
+}
+
+enum ActivityType {
+  CREATED
+  STAGE_CHANGED
+  UPDATED
+  FOLLOW_UP_SET
+  FOLLOW_UP_CLEARED
+  IMPORTED
+}
+
+model Application {
+  id           String     @id @default(cuid())
+  userId       String
+  user         User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  company      String
+  role         String
+  jobUrl       String?
+  location     String?
+  workMode     WorkMode   @default(ONSITE)
+  salaryMin    Int?
+  salaryMax    Int?
+  currency     String     @default("USD")
+  source       Source     @default(OTHER)
+  stage        Stage      @default(WISHLIST)
+  /// Order of the card inside its stage column (0 = top).
+  position     Int        @default(0)
+  appliedAt    DateTime?  @db.Date
+  contactName  String?
+  contactEmail String?
+  notes        String     @default("")
+  followUpAt   DateTime?  @db.Date
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+  activities   Activity[]
+
+  @@index([userId, stage, position])
+  @@index([userId, followUpAt])
+  @@map("application")
+}
+
+model Activity {
+  id            String       @id @default(cuid())
+  applicationId String
+  application   Application  @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+  type          ActivityType
+  fromStage     Stage?
+  toStage       Stage?
+  message       String?
+  createdAt     DateTime     @default(now())
+
+  @@index([applicationId, createdAt])
+  @@map("activity")
+}
